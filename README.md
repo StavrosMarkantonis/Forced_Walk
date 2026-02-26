@@ -114,7 +114,7 @@ def rl_objective(trial):
 
 # Create a study aiming to MAXIMIZE the reward.
 # The algorithm will terminate early if any trial returns 200.0 or higher.
-study = forcedWalk4_8.create_fw_study(
+study = forcedWalk.create_fw_study(
     direction="maximize", 
     terminate_value=200.0
 )
