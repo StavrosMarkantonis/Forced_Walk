@@ -4,6 +4,7 @@ Forced Walk is a high-performance, black-box optimization framework reformulated
 
 Instead of relying on Gaussian Processes, which suffer from cubic computational complexity, Forced Walk utilizes a Neural Network as a high-fidelity surrogate policy. This approach enables linear scaling and provides greater robustness to noise in stochastic environments.
 
+<img width="1800" height="686" alt="method" src="https://github.com/user-attachments/assets/fb225376-c1ab-4bfa-b078-4d5dc47d7895" />
 
 
 ## Algorithm Mechanics
@@ -99,7 +100,7 @@ In many scenarios, such as Reinforcement Learning environments, you may not need
 You can use the `terminate_value` parameter to instantly halt the algorithm as soon as a candidate configuration meets or surpasses this threshold. This prevents unnecessary evaluations and saves significant computational resources.
 
 ```python
-import forcedWal
+import forcedWalk
 
 def rl_objective(trial):
     # 1. Define the policy hyperparameters
@@ -124,6 +125,67 @@ print("Starting optimization. Will terminate early if target reward is reached..
 study.optimize(rl_objective, n_trials=500)
 
 print(f"Optimization finished! Best Reward: {study.best_value}")
+```
+
+### Example 4: Hartmann 6 optimization
+Example code for finding the minima of the 6-dimensional Hartmann equation (https://www.sfu.ca/~ssurjano/hart6.html).
+```python
+import numpy as np
+import forcedWalk
+
+def hartmann6(param):
+    """
+    Hartmann 6-Dimensional function
+    x must be a NumPy array of shape (6,)
+    Global Minimum: approximately f(x)≈−3.322 at (0.20168952, 0.15001069, 0.47687398, 0.27533243, 0.31165162, 0.65730054)
+    """
+    x = np.array(param).flatten()
+    if x.shape != (6,):
+        raise ValueError("Hartmann 6D function requires exactly 6 dimensions.")
+    # Standard parameters
+    alpha = np.array([1.0, 1.2, 3.0, 3.2])
+    
+    A = np.array([
+        [10, 3, 17, 3.5, 1.7, 8],
+        [0.05, 10, 17, 0.1, 8, 14],
+        [3, 3.5, 1.7, 10, 17, 8],
+        [17, 8, 0.05, 10, 0.1, 14]
+    ])
+    
+    P = 10**-4 * np.array([
+        [1312, 1696, 5569, 124, 8283, 5886],
+        [2329, 4135, 8307, 3736, 1004, 9991],
+        [2348, 1451, 3522, 2883, 3047, 6650],
+        [4047, 8828, 8732, 5743, 1091, 381]
+    ])
+    
+    # Calculate the inner sum: sum(A_ij * (x_j - P_ij)^2) for all i
+    exponent = np.sum(A * (x - P)**2, axis=1)    
+    # Calculate the final function value
+    return -np.sum(alpha * np.exp(-exponent))
+
+# --------------------------
+# Forced Walk Objective
+# --------------------------
+def optimize_function(trial):   
+    paramA = trial.suggest_float("paramA", 0, 1)
+    paramB = trial.suggest_float("paramB", 0, 1)
+    paramC = trial.suggest_float("paramC", 0, 1)
+    paramD = trial.suggest_float("paramD", 0, 1)
+    paramE = trial.suggest_float("paramE", 0, 1)
+    paramF = trial.suggest_float("paramF", 0, 1)
+
+    score = hartmann6([paramA, paramB ,paramC, paramD, paramE, paramF])
+    return score
+    
+study = forcedWalk.create_fw_study(direction="minimize", hyperparams={
+        "tau": 20,          # Set the stagnation limit
+        "mu": 0,            # Set the sliding window
+        "zeta": 2,          # Zoom factor used to constrict the exploration trust region
+        "max_zoom": 48      # Maximum allowed constriction of the exploration trust region
+    })
+study.optimize(optimize_function, n_trials=200)   
+print(study.best_value)
 ```
 
 ## Internal Parameter Configuration Guide
