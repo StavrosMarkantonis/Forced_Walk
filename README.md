@@ -83,7 +83,6 @@ forced_walk_parameters = {
 # Pass the dictionary into the study creation via the hyperparams argument
 study = forcedWalk.create_fw_study(
     direction="minimize", 
-    terminate_value=0.0000001,
     hyperparams=forced_walk_parameters
 )
 
@@ -194,12 +193,13 @@ The following internal parameters govern the exploration/exploitation balance of
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| **`upper_search`** | Int | Global search radius boundary (percentage of space). For example, `50` searches the entire parameter space. |
-| **`beta`** | Int | Evaluation batch size and selection bottleneck. Determines how many seeds survive Global Exploration. |
-| **`tau`** | Int | Stagnation limit. Number of consecutive episodes without improvement before triggering adaptive step-scaling (zoom). |
-| **`zeta`** | Float | Zoom factor. The multiplier used to constrict the exploration trust region upon stagnation. |
-| **`mu`** | Float | Sliding window factor `[0, 1)`. Fraction of the oldest replay buffer experiences to prune (e.g., `0.3` drops oldest 30%). |
-| **`max_zoom`** | Int | Maximum allowed zoom level. Prevents the search radius from scaling down into floating-point collapse. |
-| **`rho`** | Int | Number of initial random samples for the stochastic warm-up phase to prevent cold-start bias. |
-| **`R_local`** | Int | Local sampling intensity. Number of candidates generated in the proximal refinement clusters. |
-| **`lambda`** | Float | Locality factor. The ratio linking the global exploration radius to the local refinement radius. |
+| **`base_scale`** | Int | Centralized grid resolution (default: 10.000). Acts as the foundational denominator for mapping discrete stochastic steps to the continuous parameter space. |
+| **`search_radius`** | Float | Global search radius ($\delta$). Must be in the range `(0, 0.5]`. A value of `0.5` establishes a full-space diameter of 1.0, covering 100% of the parameter bounds. |
+| **`beta`** | Int | Evaluation batch size ($\beta$) and selection bottleneck. Determines how many high-potential seeds survive Global Exploration to become pivot points. |
+| **`tau`** | Int | Stagnation limit ($\tau$). Number of consecutive episodes without a new global best before triggering adaptive step-scaling (zoom). |
+| **`zeta`** | Float | Zoom factor ($\zeta$). The multiplier is used to systematically constrict the exploration trust region upon detecting stagnation. |
+| **`mu`** | Float | Sliding window factor ($\mu$). Must be in the range`[0, 1)`. Fraction of the oldest replay buffer experiences to prune (e.g., `0.3` drops the oldest 30%) to force local topographic overfitting. |
+| **`max_zoom`** | Int | Maximum allowed zoom level. Prevents the search radius from scaling down into mathematical collapse or zero-step states. |
+| **`rho`** | Int | Number of initial random samples ($\rho$) for the stochastic warm-up phase to populate the replay buffer and prevent cold-start bias. |
+| **`R_local`** | Int | Local sampling intensity. Number of dense candidates generated around each pivot point during the proximal refinement stage. |
+| **`lambda`** | Float | Locality factor multiplier ($\lambda$). Must be in the range `(0, 1]`. Dictates the local refinement radius strictly as a fraction of the current global radius ($\delta_{local} = \lambda \cdot \delta$). |
