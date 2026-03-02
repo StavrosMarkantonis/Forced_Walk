@@ -1,8 +1,8 @@
 # Forced Walk Optimization Framework
 
-Forced Walk is a high-performance, black-box optimization framework reformulated as a Reinforcement Learning (RL) process. It is specifically designed to navigate complex, non-differentiable parameter spaces efficiently. 
+Forced Walk is a high-performance black-box optimization framework that reformulates the search for global optima as a Reinforcement Learning paradigm to efficiently navigate complex, non-differentiable parameter spaces. By employing a neural network as a high-fidelity surrogate policy rather than traditional Gaussian Processes, the framework circumvents the $\mathcal{O}(N^3)$ computational bottleneck. This architectural shift enables $\mathcal{O}(N)$ linear scaling and significantly enhances robustness against noise in stochastic landscapes. 
 
-Instead of relying on Gaussian Processes, which suffer from cubic computational complexity, Forced Walk utilizes a Neural Network as a high-fidelity surrogate policy. This approach enables linear scaling and provides greater robustness to noise in stochastic environments.
+Forced Walk provides a scalable and versatile methodology, specifically engineered for dynamic applications such as the hyperparameter tuning of Reinforcement Learning frameworks.
 
 <img width="1800" height="686" alt="method" src="https://github.com/user-attachments/assets/fb225376-c1ab-4bfa-b078-4d5dc47d7895" />
 
@@ -187,9 +187,11 @@ study.optimize(optimize_function, n_trials=200)
 print(study.best_value)
 ```
 
-## Internal Parameter Configuration Guide
+## Configuration Guide
 
-The following internal parameters govern the exploration/exploitation balance of the algorithm. They can be overridden using the dictionary method shown in Example 2.
+### Forced Walk hyperparameters
+
+The following internal parameters govern the behavior of the Forced Walk algorithm. They can be overridden using the dictionary method shown in Example 2.
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
@@ -203,3 +205,8 @@ The following internal parameters govern the exploration/exploitation balance of
 | **`rho`** | Int | Number of initial random samples ($\rho$) for the stochastic warm-up phase to populate the replay buffer and prevent cold-start bias. |
 | **`R_local`** | Int | Local sampling intensity. Number of dense candidates generated around each pivot point during the proximal refinement stage. |
 | **`lambda`** | Float | Locality factor multiplier ($\lambda$). Must be in the range `(0, 1]`. Dictates the local refinement radius strictly as a fraction of the current global radius ($\delta_{local} = \lambda \cdot \delta$). |
+
+### Console Colors
+Use the following if you need to deactivate the console's colored output:
+
+**`study.use_colors = False`**
