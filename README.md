@@ -23,7 +23,7 @@ The framework explicitly decouples search dynamics: stochastic perturbation driv
 Ensure the following dependencies are installed in your Python environment:
 * `numpy`
 * `scikit-learn`
-* `tensorflow` (CPU execution is utilized internally to avoid GPU memory fragmentation during frequent micro-retrains)
+* `tensorflow>=2.10.0` (CPU execution is utilized internally to avoid GPU memory fragmentation during frequent micro-retrains)
 
 ---
 
@@ -36,7 +36,7 @@ The Forced Walk framework utilizes a "Define-by-Run" API, meaning you define you
 To use the algorithm with its default configuration, simply define your objective function with the `trial.suggest_*` methods, and pass it to the optimization study.
 
 ```python
-import forcedWalk
+import forced_walk
 
 def objective(trial):
     # 1. Define the search space dynamically
@@ -71,7 +71,7 @@ If you need to tune the internal behavior of the Forced Walk algorithm (e.g., ad
 You only need to include the specific parameters you wish to override; the rest will fall back to their default values.
 
 ```python
-import forcedWalk
+import forced_walk
 
 # Define the specific internal parameters you want to alter for the algorithm
 forced_walk_parameters = {
@@ -99,7 +99,7 @@ In many scenarios, such as Reinforcement Learning environments, you may not need
 You can use the `terminate_value` parameter to instantly halt the algorithm as soon as a candidate configuration meets or surpasses this threshold. This prevents unnecessary evaluations and saves significant computational resources.
 
 ```python
-import forcedWalk
+import forced_walk
 
 def rl_objective(trial):
     # 1. Define the policy hyperparameters
@@ -130,7 +130,7 @@ print(f"Optimization finished! Best Reward: {study.best_value}")
 Example code for finding the minima of the 6-dimensional Hartmann equation (https://www.sfu.ca/~ssurjano/hart6.html).
 ```python
 import numpy as np
-import forcedWalk
+import forced_walk
 
 def hartmann6(param):
     """
