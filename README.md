@@ -1,20 +1,33 @@
 # Forced Walk Optimization Framework
 
-Forced Walk is a high-performance black-box optimization framework that reformulates the search for global optima as a Reinforcement Learning paradigm to efficiently navigate complex, non-differentiable parameter spaces. By employing a neural network as a high-fidelity surrogate policy rather than traditional Gaussian Processes, the framework circumvents the $\mathcal{O}(N^3)$ computational bottleneck. This architectural shift enables $\mathcal{O}(N)$ linear scaling and significantly enhances robustness against noise in stochastic landscapes. 
+**Forced Walk** is a scalable engine for black-box optimization specifically engineered for dynamic applications such as the hyperparameter tuning of Reinforcement Learning frameworks. It turns the challenge of finding global optima into an agent-based exploration task, allowing it to navigate complex, "jittery" parameter spaces.
 
-Forced Walk provides a scalable and versatile methodology, specifically engineered for dynamic applications such as the hyperparameter tuning of Reinforcement Learning frameworks.
+Traditional Bayesian solvers (like those using Gaussian Processes) suffer from a massive **cubic bottleneck**, $\mathcal{O}(N^3)$. By using a **Neural Policy surrogate** instead of a GP, Forced Walk scales **linearly**. This means you get consistent performance even as your search history grows, making it ideal for high-dimensional tuning.
 
-<img width="1800" height="686" alt="method" src="https://github.com/user-attachments/assets/fb225376-c1ab-4bfa-b078-4d5dc47d7895" />
-
+Unlike static optimizers, this framework was specifically built to handle the "moving targets" found in Reinforcement Learning. 
+* **Noise-Resistant:** The deep learning backbone naturally filters out stochastic noise in reward signals.
+* **Adaptive:** It is optimized for non-stationary landscapes (like hyperparameter scheduling) where data distributions shift over time.
 
 ## Algorithm Mechanics
 
-The framework explicitly decouples search dynamics: stochastic perturbation drives exploration, while policy-driven selection enforces exploitation. The search trajectory is guided by a Bilevel Filtering Policy:
+<img width="1800" height="686" alt="method" src="https://github.com/user-attachments/assets/fb225376-c1ab-4bfa-b078-4d5dc47d7895" />
 
-1. **Global Exploration:** A candidate pool is sampled around the best-known solution. The size of this pool dynamically scales based on a Sigmoidal growth curve dependent on cumulative experience.
-2. **Proximal Refinement:** The Value Network selects the top high-potential seeds. High-density clusters are generated locally around these seeds to simulate a local policy gradient.
-3. **Greedy Selection & Experience Replay:** The single optimal candidate from each cluster is evaluated by the true black-box objective function. The state-reward tuples are saved to an Experience Replay Buffer to train the Value Network off-policy.
-4. **Adaptive Step-Scaling & Dynamic Maintenance:** Upon detecting stagnation, the exploration radius is constricted by a zoom factor. A sliding window prunes older distal experiences to mitigate distribution shift during training.
+The engine utilizes a **dual-phase search strategy** designed to optimize black-box objective functions without requiring explicit gradients. It operates by balancing raw exploration with a neural-network-backed selection process.
+
+### 1. Dynamic Scaling (The Growth Curve)
+Instead of a fixed sample size, the framework initializes with a lean candidate pool. As the model gathers more environment interactions, the population size expands following a **logistic growth pattern**. This ensures computational efficiency in early training while providing the density needed for fine-tuned convergence in later stages.
+
+
+### 2. Hierarchical Filtering (The Selection Pipeline)
+The search trajectory is managed via a two-stage filter:
+
+* **Macro-Sampling:** Generates a wide-reaching set of seeds around the current best-known parameters to avoid local optima.
+* **Micro-Refinement:** A trained **Value Network** acts as a surrogate evaluator, identifying high-potential seeds. The system then "zooms in" to create dense local clusters around these points, effectively approximating a policy gradient without backpropagation through the environment.
+
+### 3. Optimization & Memory Management
+* **Winner-Take-All Evaluation:** Only the top candidate from each cluster is sent to the expensive objective function. This drastically reduces the number of "real" environment steps required.
+* **Buffer Pruning:** To handle non-stationary data, the system employs a **temporal sliding window**. This automatically discards stale experience that no longer reflects the current policy's search space, preventing the Value Network from over-fitting to outdated trajectories.
+* **Auto-Zoom:** If the reward signal plateaus (stagnation), the framework automatically constricts the exploration radius to focus the search on the immediate vicinity of the current peak.
 
 ---
 
@@ -23,7 +36,7 @@ The framework explicitly decouples search dynamics: stochastic perturbation driv
 Ensure the following dependencies are installed in your Python environment:
 * `numpy`
 * `scikit-learn`
-* `tensorflow>=2.10.0` (CPU execution is utilized internally to avoid GPU memory fragmentation during frequent micro-retrains)
+* `tensorflow>=2.10.0`
 
 ---
 
@@ -56,7 +69,7 @@ def objective(trial):
     return score
 
 # Create the study and run the optimization
-study = forcedWalk.create_fw_study(direction="minimize")
+study = forced_walk.create_fw_study(direction="minimize")
 
 print("Starting Forced Walk Optimization...")
 study.optimize(objective, n_trials=100)
@@ -81,7 +94,7 @@ forced_walk_parameters = {
 }
 
 # Pass the dictionary into the study creation via the hyperparams argument
-study = forcedWalk.create_fw_study(
+study = forced_walk.create_fw_study(
     direction="minimize", 
     hyperparams=forced_walk_parameters
 )
@@ -114,7 +127,7 @@ def rl_objective(trial):
 
 # Create a study aiming to MAXIMIZE the reward.
 # The algorithm will terminate early if any trial returns 200.0 or higher.
-study = forcedWalk.create_fw_study(
+study = forced_walk.create_fw_study(
     direction="maximize", 
     terminate_value=200.0
 )
@@ -127,7 +140,7 @@ print(f"Optimization finished! Best Reward: {study.best_value}")
 ```
 
 ### Example 4: Hartmann 6 optimization
-Example code for finding the minima of the 6-dimensional Hartmann equation (https://www.sfu.ca/~ssurjano/hart6.html).
+Example code for finding the global minimum of the 6-dimensional Hartmann equation (https://www.sfu.ca/~ssurjano/hart6.html).
 ```python
 import numpy as np
 import forced_walk
@@ -177,10 +190,10 @@ def optimize_function(trial):
     score = hartmann6([paramA, paramB ,paramC, paramD, paramE, paramF])
     return score
     
-study = forcedWalk.create_fw_study(direction="minimize", hyperparams={
+study = forced_walk.create_fw_study(direction="minimize", hyperparams={
         "tau": 20,          # Set the stagnation limit
-        "mu": 0,            # Set the sliding window
-        "zeta": 2,          # Zoom factor used to constrict the exploration trust region
+        "mu": 0,            # Set the truncation factor
+        "zeta": 2,          # Set the contraction factor used to constrict the exploration trust region
         "max_zoom": 48      # Maximum allowed constriction of the exploration trust region
     })
 study.optimize(optimize_function, n_trials=200)   
@@ -195,14 +208,14 @@ The following internal parameters govern the behavior of the Forced Walk algorit
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| **`base_scale`** | Int | Centralized grid resolution (default: 10.000). Acts as the foundational denominator for mapping discrete stochastic steps to the continuous parameter space. |
+| **`base_scale`** | Int | Centralized grid resolution (default: 10,000). Acts as the foundational denominator for mapping discrete stochastic steps to the continuous parameter space. |
 | **`search_radius`** | Float | Global search radius ($\delta$). Must be in the range `(0, 0.5]`. A value of `0.5` establishes a full-space diameter of 1.0, covering 100% of the parameter bounds. |
 | **`beta`** | Int | Evaluation batch size ($\beta$) and selection bottleneck. Determines how many high-potential seeds survive Global Exploration to become pivot points. |
 | **`tau`** | Int | Stagnation limit ($\tau$). Number of consecutive episodes without a new global best before triggering adaptive step-scaling (zoom). |
-| **`zeta`** | Float | Zoom factor ($\zeta$). The multiplier is used to systematically constrict the exploration trust region upon detecting stagnation. |
-| **`mu`** | Float | Sliding window factor ($\mu$). Must be in the range`[0, 1)`. Fraction of the oldest replay buffer experiences to prune (e.g., `0.3` drops the oldest 30%) to force local topographic overfitting. |
-| **`max_zoom`** | Int | Maximum allowed zoom level. Prevents the search radius from scaling down into mathematical collapse or zero-step states. |
-| **`rho`** | Int | Number of initial random samples ($\rho$) for the stochastic warm-up phase to populate the replay buffer and prevent cold-start bias. |
+| **`zeta`** | Float | Contraction factor ($\zeta$). The multiplier is used to systematically constrict the exploration trust region upon detecting stagnation. |
+| **`mu`** | Float | Truncation factor ($\mu$). Must be in the range`[0, 1)`. Fraction of the oldest replay buffer experiences to prune (e.g., `0.3` drops the oldest 30%) to force local topographic overfitting. |
+| **`max_zoom`** | Int | Maximum allowed contraction level. Prevents the search radius from scaling down into mathematical collapse or zero-step states. |
+| **`rho`** | Int | Initial random samples ($\rho$) for the stochastic warm-up phase to populate the replay buffer and prevent cold-start bias. |
 | **`R_local`** | Int | Local sampling intensity. Number of dense candidates generated around each pivot point during the proximal refinement stage. |
 | **`lambda`** | Float | Locality factor multiplier ($\lambda$). Must be in the range `(0, 1]`. Dictates the local refinement radius strictly as a fraction of the current global radius ($\delta_{local} = \lambda \cdot \delta$). |
 
