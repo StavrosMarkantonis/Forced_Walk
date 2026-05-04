@@ -36,7 +36,7 @@ The search trajectory is managed via a two-stage filter:
 Ensure the following dependencies are installed in your Python environment:
 * `numpy`
 * `scikit-learn`
-* `tensorflow>=2.10.0`
+* `tensorflow=2.10.0`
 
 ---
 
