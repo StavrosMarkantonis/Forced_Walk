@@ -3,6 +3,9 @@
 # Enables console logging of trial evaluations and discovered best values ("True" or "False")
 logging: "True"
 
+# Deactivate the console's colored output ("True" or "False")
+use_colors: "True"
+
 # Global exploration radius multiplier. Defines the maximum span of randomized steps 
 # relative to the base_scale. Must be in the range (0, 0.5].
 search_radius: 0.5
