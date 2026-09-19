@@ -1,17 +1,36 @@
 # -*- coding: utf-8 -*-
+
+import os
+
+# Set these BEFORE importing tensorflow
+# threads = "3" # Adjust this to leave 1-2 cores free
+# os.environ["OMP_NUM_THREADS"] = threads
+# os.environ["OPENBLAS_NUM_THREADS"] = threads
+# os.environ["MKL_NUM_THREADS"] = threads
+# os.environ["VECLIB_MAXIMUM_THREADS"] = threads
+# os.environ["NUMEXPR_NUM_THREADS"] = threads
+
+import tensorflow as tf
+# tf.config.threading.set_intra_op_parallelism_threads(int(threads))
+# tf.config.threading.set_inter_op_parallelism_threads(int(threads))
+
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
-import tensorflow as tf
 from tensorflow.keras import layers
 import gc
 import random
-import os
 import contextlib
 import logging
+import yaml  
 from typing import Callable, List, Tuple, Optional, Any, Dict, Union
+
+# Leave 1 or 2 threads for the OS. 
+# tf.config.threading.set_intra_op_parallelism_threads(6)
+# tf.config.threading.set_inter_op_parallelism_threads(6)
 
 # Disable TF info logs to speed up console output
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+tf.config.threading.set_intra_op_parallelism_threads(2)
 
 print(f"TensorFlow Version: {tf.__version__}")
 
@@ -21,10 +40,10 @@ logger.setLevel(logging.INFO)
 # Avoid adding multiple handlers if the module is reloaded
 if not logger.handlers:
     ch = logging.StreamHandler()
-    # \033[1;31m = Bold Red | \033[0m = Reset
     formatter = logging.Formatter('%(message)s')
     ch.setFormatter(formatter)
     logger.addHandler(ch)
+
 
 class ForcedWalkTrial:
     """
@@ -32,13 +51,11 @@ class ForcedWalkTrial:
     to the black-box objective function.
     """
     def __init__(self, values_dict: Optional[Dict[str, Any]] = None):
-        # If no dictionary is provided, this is the Discovery Phase (Trial 0)
         self.is_discovery = values_dict is None
         self._values = values_dict or {}
         self.parameters_config: List[Tuple[str, Union[Tuple[float, float], List[Any]], str]] = []
 
     def suggest_int(self, name: str, low: int, high: int) -> int:
-        """Suggests an integer value for the parameter within the specified bounds."""
         if low > high:
             raise ValueError(f"In '{name}', lower bound ({low}) cannot be > upper bound ({high}).")
             
@@ -50,7 +67,6 @@ class ForcedWalkTrial:
         return int(self._values[name])
 
     def suggest_float(self, name: str, low: float, high: float, log: bool = False) -> float:
-        """Suggests a float value for the parameter within the specified bounds."""
         if low > high:
             raise ValueError(f"In '{name}', lower bound ({low}) cannot be > upper bound ({high}).")
             
@@ -62,7 +78,6 @@ class ForcedWalkTrial:
         return float(self._values[name])
 
     def suggest_categorical(self, name: str, choices: List[Any]) -> Any:
-        """Suggests a categorical value from the provided list of choices."""
         if not choices:
             raise ValueError(f"Categorical parameter '{name}' must have at least one choice.")
             
@@ -73,46 +88,31 @@ class ForcedWalkTrial:
             return val
         return self._values[name]
 
+
 class ForcedWalkStudy:
     """Orchestrates the interface and execution of the Forced Walk optimization algorithm."""
     
-    def __init__(self, direction: str = "minimize", terminate_value: Optional[float] = None, hyperparams: Optional[Dict[str, Any]] = None):
+    def __init__(self, direction: str = "minimize", terminate_value: Optional[float] = None, hyperparams: Optional[Dict[str, Any]] = None, config_path: str = "config.yaml"):
         if direction not in ["minimize", "maximize"]:
             raise ValueError("Direction must be either 'minimize' or 'maximize'.")
             
         self.direction = direction
         self.terminate_value = terminate_value
         self.best_value: Optional[float] = None
-        self.use_colors = True
         
-        # --- OOP State Encapsulation ---
         self.best_score = float('inf') if direction == "minimize" else float('-inf')
         self.scaler: Optional[MinMaxScaler] = None
-        self.training_data: List[List[Any]] = []     # Experience Replay Buffer
-        self.global_model: Optional[tf.keras.Model] = None    # Value Network Surrogate Policy
+        self.training_data: List[List[Any]] = []     
+        self.global_model: Optional[tf.keras.Model] = None    
         
-        # --- Algorithm & Neural Network Configurations ---
-        self.training_params = {
-            "search_radius": 0.5,    # Global exploration radius (max 0.5)
-            "beta": 1,               # Evaluation batch size (selection bottleneck)
-            "tau": 20,               # Stagnation limit for step-scaling
-            "zeta": 2,               # Zoom factor for constricting trust region
-            "mu": 0.0,               # Sliding window factor for pruning
-            "max_zoom": 64,          # Maximum allowed zoom multiplier
-            "rho": 3,                # Initial random samples for warm-up
-            "R_local": 10000,        # Local sampling intensity
-            "lambda": 0.02,          # Locality factor (proximal radius)
-            "base_scale": 10000,     # Search grid resolution
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(f"Configuration file '{config_path}' not found.")
             
-            # --- Extracted Surrogate NN Hyperparameters ---
-            "nn_activation": "relu",
-            "nn_nodes": 32,
-            "nn_learning_rate": 0.0008,
-            "nn_batch_size": 4,
-            "nn_epochs_early": 200,  # Epochs when data < 1000
-            "nn_epochs_late": 300,   # Epochs when data >= 1000
-            "force_cpu": True        # Forces TF to use CPU (avoids GPU memory overhead for small NNs)
-        }
+        with open(config_path, "r") as file:
+            self.training_params = yaml.safe_load(file)
+            
+        if self.training_params is None:
+            self.training_params = {}
         
         if hyperparams is not None:
             allowed_keys = set(self.training_params.keys())
@@ -124,10 +124,15 @@ class ForcedWalkStudy:
                 
             self.training_params.update(hyperparams)
             
+        logging_config = self.training_params.get("logging", "True")
+        self.logging_enabled = str(logging_config).strip().lower() == "true"
+
+        colors_config = self.training_params.get("use_colors", "True")
+        self.use_colors = str(colors_config).strip().lower() == "true"
+            
         self._validate_training_params()
 
     def _validate_training_params(self) -> None:
-        """Validates mathematical boundaries of the configuration dictionary."""
         p = self.training_params
         if not (0 < p["search_radius"] <= 0.5):
             raise ValueError(f"'search_radius' must be (0, 0.5]. Got: {p['search_radius']}")
@@ -135,7 +140,7 @@ class ForcedWalkStudy:
             raise ValueError(f"'beta' must be a positive integer. Got: {p['beta']}")
         if not isinstance(p["tau"], int) or p["tau"] <= 0:
             raise ValueError(f"'tau' must be a positive integer. Got: {p['tau']}")
-        if p["zeta"] <= 1 and p["zeta"] != 0: # Allowing 0 based on your ablation study table
+        if p["zeta"] <= 1 and p["zeta"] != 0: 
             raise ValueError(f"'zeta' must be > 1 (or 0 to disable). Got: {p['zeta']}")
         if not (0 <= p["mu"] < 1):
             raise ValueError(f"'mu' must be in [0, 1). Got: {p['mu']}")
@@ -146,7 +151,6 @@ class ForcedWalkStudy:
 
     @contextlib.contextmanager
     def _device_context(self):
-        """Context manager to optionally force CPU execution for the surrogate."""
         if self.training_params["force_cpu"]:
             with tf.device('/CPU:0'):
                 yield
@@ -168,27 +172,28 @@ class ForcedWalkStudy:
         return unique_list
 
     def _init_global_model(self, xdim: int, ydim: int) -> None:
-        """Initializes the Neural Network surrogate architecture."""
         if xdim <= 0 or ydim <= 0:
             raise ValueError(f"Model dims must be > 0. Got xdim={xdim}, ydim={ydim}")
         
         nodes = self.training_params["nn_nodes"]
         activation = self.training_params["nn_activation"]
         lr = self.training_params["nn_learning_rate"]
+        
+        num_layers = self.training_params.get("nn_layers", 1)
 
         with self._device_context():
-            self.global_model = tf.keras.Sequential([
-                tf.keras.Input(shape=(xdim,)),
-                layers.Dense(nodes, activation=activation),
-                layers.Dense(nodes, activation=activation),
-                layers.Dense(nodes, activation=activation),
-                layers.Dense(ydim)
-            ])
+            model_layers = [tf.keras.Input(shape=(xdim,))]
+            
+            for _ in range(num_layers):
+                model_layers.append(layers.Dense(nodes, activation=activation))
+                
+            model_layers.append(layers.Dense(ydim))
+            
+            self.global_model = tf.keras.Sequential(model_layers)
             opt = tf.keras.optimizers.Adam(learning_rate=lr, amsgrad=False)
             self.global_model.compile(loss='mean_squared_error', optimizer=opt)
 
     def _reset_weights(self, model: tf.keras.Model) -> None:
-        """Re-initializes network weights to ensure ab initio training per epoch."""
         for layer in model.layers:
             if hasattr(layer, 'kernel_initializer'):
                 init_config = layer.kernel_initializer.get_config()
@@ -204,10 +209,18 @@ class ForcedWalkStudy:
                 var.assign(tf.zeros_like(var))
 
     def _train_value_network(self) -> None:
-        """Compiles the experience replay buffer and trains the NN surrogate off-policy."""
+        # 1. Apply sliding window factor (mu)
         not_use = self.training_params["mu"]
         delete_older = int(len(self.training_data) * not_use)
         data = self.training_data[delete_older:]
+        
+        # 2. Apply max_samples truncation constraint (if configured)
+        max_samples_config = self.training_params.get("max_samples", "False")
+        if str(max_samples_config).strip().lower() != "false":
+            max_samples_limit = int(max_samples_config)
+            if len(data) > max_samples_limit:
+                # Keep only the latest `max_samples_limit` elements
+                data = data[-max_samples_limit:]
         
         if len(data) == 0:
             return
@@ -240,15 +253,27 @@ class ForcedWalkStudy:
 
             epochs = self.training_params["nn_epochs_early"] if len(data) < 1000 else self.training_params["nn_epochs_late"]
                 
+            early_stop_config = self.training_params.get("early_stopping", "False")
+            use_early_stopping = str(early_stop_config).strip().lower() == "true"
+            
+            callbacks_list = []
+            if use_early_stopping:
+                early_stop_cb = tf.keras.callbacks.EarlyStopping(
+                    monitor='loss', 
+                    patience=10, 
+                    restore_best_weights=True
+                )
+                callbacks_list.append(early_stop_cb)
+
             self.global_model.fit(
                 X_scaled, y_normalized,
                 epochs=epochs,
                 batch_size=self.training_params["nn_batch_size"],
-                verbose=0  
+                verbose=0,
+                callbacks=callbacks_list
             )
 
     def _filter_moves(self, new_init: List[List[Any]], allow_params: int, parameters: List[Any]) -> List[List[Any]]:
-        """Filters the stochastically generated candidates through the NN surrogate."""
         if allow_params <= 0 or not new_init:
             return []
         
@@ -287,7 +312,6 @@ class ForcedWalkStudy:
         return [new_init[i] for i in best_indices]
 
     def _generate_candidates_vectorized(self, base_param: List[Any], num_candidates: int, dice_min: int, dice_max: int, scale: float, parameters: List[Any]) -> List[List[Any]]:
-        """Vectorized stochastic perturbation to generate the global candidate pool."""
         if dice_min >= dice_max + 1:
             raise ValueError(f"dice_min ({dice_min}) must be <= dice_max ({dice_max})")
             
@@ -323,7 +347,6 @@ class ForcedWalkStudy:
         shifts = dice_rolls * multipliers * steps
         new_params = base_arr + shifts
         
-        # Enforce toroidal boundary conditions
         new_params = np.where(new_params < low_limits, high_limits + (new_params - low_limits), new_params)
         new_params = np.where(new_params > high_limits, low_limits + (new_params - high_limits), new_params)
         
@@ -345,13 +368,11 @@ class ForcedWalkStudy:
         return final_params
 
     def _global_sampling_r(self, filtration_total: int, dim: int, run_number: int) -> int:
-        """Calculates the dynamically sized candidate pool via a Sigmoid curve."""
         midpoint, steepness, max_value = 20, 0.2, 40
         sigmoid = max_value / (1 + np.exp(-steepness * (run_number - midpoint)))
         return int(sigmoid * dim) + filtration_total
 
     def _init_parameters(self, parameters: List[Any]) -> List[Any]:
-        """Generates a random initial coordinate within the search space."""
         init_param = []
         for i in range(len(parameters)):
             p_type = parameters[i][2]
@@ -367,7 +388,6 @@ class ForcedWalkStudy:
         return init_param
 
     def _generate_parameters(self, init: List[Any], run_number: int, scale: float, parameters: List[Any]) -> List[List[Any]]:
-        """Executes the Bilevel Filtering Policy (Global Exploration + Proximal Refinement)."""
         low_high_dice = 1
         high_high_dice = self.training_params["search_radius"] * self.training_params["base_scale"]
         filtration_total = self.training_params["beta"]
@@ -378,7 +398,6 @@ class ForcedWalkStudy:
         
         dim = len(init)
 
-        # --- Stage 1: Global Exploration ---
         random_gen_count = self._global_sampling_r(filtration_total, dim, run_number)
         candidates_phase_1 = self._generate_candidates_vectorized(
             init, random_gen_count, low_high_dice, high_high_dice, scale, parameters
@@ -388,7 +407,6 @@ class ForcedWalkStudy:
         if not best_phase_1: 
             return [init]
 
-        # --- Stage 2: Proximal Refinement ---
         all_final_candidates = []
         for pivot_point in best_phase_1:
             candidates_phase_2 = self._generate_candidates_vectorized(
@@ -400,14 +418,12 @@ class ForcedWalkStudy:
         return self._remove_duplicates(all_final_candidates)
 
     def _append_training_data(self, row: List[Any], value: float) -> None:
-        """Appends the state-value tuple to the Experience Replay Buffer."""
         if (self.direction == "minimize" and value < self.best_score) or \
            (self.direction == "maximize" and value > self.best_score):
             self.best_score = value
         self.training_data.append(row + [value])
 
     def _forced_walk(self, max_iterations: int, parameters: List[Any], get_values: Callable[[List[Any]], float], initial_run_data: Optional[Tuple[List[Any], float]] = None) -> float:
-        """Main optimization loop managing evaluation, stagnation, and step-scaling."""
         scale = self.training_params["base_scale"] 
         base_scale_ref = self.training_params["base_scale"]
         
@@ -448,9 +464,12 @@ class ForcedWalkStudy:
                              
             if is_improvement:
                 current_best_init = raw_params
-                logger.info(f">>> Run {c_red}{current_run}{c_reset}| Params: {c_blue}{transformed}{c_reset} | New Best Value: {c_green}{val}{c_reset}")
-            else:
-                logger.info(f">>> Run {c_red}{current_run}{c_reset}| Params: {c_blue}{transformed}{c_reset} | Value: {c_yellow}{val}{c_reset}")
+                
+            if self.logging_enabled:
+                if is_improvement:
+                    logger.info(f">>> Run {c_red}{current_run}{c_reset}| Params: {c_blue}{transformed}{c_reset} | New Best Value: {c_green}{val}{c_reset}")
+                else:
+                    logger.info(f">>> Run {c_red}{current_run}{c_reset}| Params: {c_blue}{transformed}{c_reset} | Value: {c_yellow}{val}{c_reset}")
                 
             self._append_training_data(training_row, val)
             
@@ -462,24 +481,20 @@ class ForcedWalkStudy:
                     
             return val, current_best_init, should_stop
 
-        # --- Integrated Discovery/Run 1 ---
         if initial_run_data:
             raw_p, val = initial_run_data
             val, best_init, stop = evaluate_and_update(raw_p, best_init, precomputed_val=val)
             current_run += 1
             if stop: return self.best_score
 
-        # --- Stochastic Warm-Up Phase ---
         warmup_remaining = random_start_count - (1 if initial_run_data else 0)
         for _ in range(max(0, warmup_remaining)):
             val, best_init, stop = evaluate_and_update(self._init_parameters(parameters), best_init)
             current_run += 1
             if stop: return self.best_score
 
-        # Initial Off-Policy Update
         self._train_value_network()
 
-        # --- Main Optimization Loop ---
         while current_run <= (max_iterations + (1 if initial_run_data else 0)):
             new_candidates = self._generate_parameters(best_init, current_run - random_start_count, scale, parameters)
             
@@ -494,42 +509,36 @@ class ForcedWalkStudy:
                 else: 
                     best_metric_counter += 1  
                 
-                # Adaptive Step-Scaling
                 if scale_factor > 0 and best_metric_counter >= threshold_metric:
                     best_metric_counter = 0
                     interim_scale = int(scale * scale_factor)
 
                     if interim_scale < self.training_params["max_zoom"] * base_scale_ref:
                         scale = interim_scale
-                        print(f"Search Radius Constricted by a factor of {scale / base_scale_ref}")
+                        if self.logging_enabled:
+                            print(f"Search Radius Constricted by a factor of {scale / base_scale_ref}")
                     else:
-                        print(f"Search Radius cannot exceed the max zoom limit of {self.training_params['max_zoom']}")
-                                            
+                        if self.logging_enabled:
+                            print(f"Search Radius cannot exceed the max zoom limit of {self.training_params['max_zoom']}")
+                                                                                                                        
                 current_run += 1
                 if stop: return self.best_score
 
             self._train_value_network()
             
-        # --- Teardown ---
         tf.keras.backend.clear_session()
         self.global_model = None 
         gc.collect()
         
-        print(f"\n--- Final Validation ---\nAbsolute Best Parameters: {best_init}\nAbsolute Best Value: {self.best_score}")
+        if self.logging_enabled:
+            print(f"\n--- Final Validation ---\nAbsolute Best Parameters: {best_init}\nAbsolute Best Value: {self.best_score}")
+            
         return self.best_score
 
     def optimize(self, objective_func: Callable[[ForcedWalkTrial], float], n_trials: int) -> None:
-        """
-        Executes the optimization process against the provided objective function.
-        
-        Args:
-            objective_func: The black-box function to optimize.
-            n_trials: Total number of function evaluations.
-        """
         if n_trials <= 0:
             raise ValueError(f"n_trials must be at least 1, received: {n_trials}")
             
-        # --- 1. Discovery Phase (Trial 0) ---
         discovery_trial = ForcedWalkTrial()
         first_score = objective_func(discovery_trial)
         parameters = discovery_trial.parameters_config
@@ -546,13 +555,11 @@ class ForcedWalkStudy:
             else:
                 first_params_raw.append(val)
         
-        # --- 2. Translation Phase ---
         def fw_objective(param_array: List[Any]) -> float:
             values_dict = {name: val for name, val in zip(param_names, param_array)}
             eval_trial = ForcedWalkTrial(values_dict)
             return objective_func(eval_trial)
             
-        # --- 3. Execution Phase ---
         remaining_trials = max(1, n_trials - 1)
         self.best_value = self._forced_walk(
             max_iterations=remaining_trials,
@@ -567,7 +574,5 @@ class ForcedWalkStudy:
             self.best_value = max(self.best_value, first_score)
 
 
-# --- Global Helper Factory ---
-def create_fw_study(direction: str = "minimize", terminate_value: Optional[float] = None, hyperparams: Optional[Dict[str, Any]] = None) -> ForcedWalkStudy:
-    """Factory function to initialize and validate a new ForcedWalkStudy object."""
-    return ForcedWalkStudy(direction=direction, terminate_value=terminate_value, hyperparams=hyperparams)
+def create_fw_study(direction: str = "minimize", terminate_value: Optional[float] = None, hyperparams: Optional[Dict[str, Any]] = None, config_path: str = "config.yaml") -> ForcedWalkStudy:
+    return ForcedWalkStudy(direction=direction, terminate_value=terminate_value, hyperparams=hyperparams, config_path=config_path)
