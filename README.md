@@ -50,7 +50,7 @@ The Forced Walk framework utilizes a "Define-by-Run" API, meaning you define you
 To use the algorithm with its default configuration, simply define your objective function with the `trial.suggest_*` methods, and pass it to the optimization study.
 
 ```python
-import forced_walk
+import forced_walk as fw
 
 def objective(trial):
     # 1. Define the search space dynamically
@@ -70,7 +70,7 @@ def objective(trial):
     return score
 
 # Create the study and run the optimization
-study = forced_walk.create_fw_study(direction="minimize")
+study = fw.create_fw_study(direction="minimize")
 
 print("Starting Forced Walk Optimization...")
 study.optimize(objective, n_trials=100)
@@ -85,7 +85,7 @@ In many scenarios, such as Reinforcement Learning environments, you may not need
 You can use the `terminate_value` parameter to instantly halt the algorithm as soon as a candidate configuration meets or surpasses this threshold. This prevents unnecessary evaluations and saves significant computational resources.
 
 ```python
-import forced_walk
+import forced_walk as fw
 
 def rl_objective(trial):
     # 1. Define the policy hyperparameters
@@ -100,7 +100,7 @@ def rl_objective(trial):
 
 # Create a study aiming to MAXIMIZE the reward.
 # The algorithm will terminate early if any trial returns 200.0 or higher.
-study = forced_walk.create_fw_study(
+study = fw.create_fw_study(
     direction="maximize", 
     terminate_value=200.0
 )
@@ -116,7 +116,7 @@ print(f"Optimization finished! Best Reward: {study.best_value}")
 Example code for finding the global minimum of the 6-dimensional Hartmann equation (https://www.sfu.ca/~ssurjano/hart6.html).
 ```python
 import numpy as np
-import forced_walk
+import forced_walk as fw
 
 def hartmann6(param):
     """
@@ -163,7 +163,7 @@ def optimize_function(trial):
     score = hartmann6([paramA, paramB ,paramC, paramD, paramE, paramF])
     return score
     
-study = forced_walk.create_fw_study(direction="minimize")
+study = fw.create_fw_study(direction="minimize")
 study.optimize(optimize_function, n_trials=200)   
 print(study.best_value)
 ```
