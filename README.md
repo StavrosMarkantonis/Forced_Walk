@@ -77,35 +77,7 @@ study.optimize(objective, n_trials=100)
 print(f"Best Score Achieved: {study.best_value}")
 ```
 
-### Example 2: Changing the Algorithm's Internal Parameters
-
-If you need to tune the internal behavior of the Forced Walk algorithm (e.g., adjusting the stagnation limits or sampling intensity), you can pass a `forced_walk_parameters` dictionary when creating the study.
-
-You only need to include the specific parameters you wish to override; the rest will fall back to their default values.
-
-```python
-import forced_walk
-
-# Define the specific internal parameters you want to alter for the algorithm
-forced_walk_parameters = {
-    "tau": 15,           # Lower the stagnation limit to zoom in faster
-    "mu": 0.3,           # Set the sliding window to drop the oldest 30% of data
-    "R_local": 5000      # Halve the local sampling intensity for faster execution
-}
-
-# Pass the dictionary into the study creation via the hyperparams argument
-study = forced_walk.create_fw_study(
-    direction="minimize", 
-    hyperparams=forced_walk_parameters
-)
-
-# Run the optimization
-study.optimize(objective, n_trials=150)
-
-print(f"Best Score Achieved: {study.best_value}")
-```
-
-### Example 3: Early Termination for Target Objectives (RL Context)
+### Example 2: Early Termination for Target Objectives (RL Context)
 
 In many scenarios, such as Reinforcement Learning environments, you may not need to run the algorithm until the evaluation budget is entirely exhausted. Instead, the environment is considered "solved" once the agent achieves a specific target reward (e.g., reaching a score of 200). 
 
@@ -139,7 +111,7 @@ study.optimize(rl_objective, n_trials=500)
 print(f"Optimization finished! Best Reward: {study.best_value}")
 ```
 
-### Example 4: Hartmann 6 optimization
+### Example 3: Hartmann 6 optimization
 Example code for finding the global minimum of the 6-dimensional Hartmann equation (https://www.sfu.ca/~ssurjano/hart6.html).
 ```python
 import numpy as np
@@ -190,12 +162,7 @@ def optimize_function(trial):
     score = hartmann6([paramA, paramB ,paramC, paramD, paramE, paramF])
     return score
     
-study = forced_walk.create_fw_study(direction="minimize", hyperparams={
-        "tau": 20,          # Set the stagnation limit
-        "mu": 0,            # Set the truncation factor
-        "zeta": 2,          # Set the contraction factor used to constrict the exploration trust region
-        "max_zoom": 48      # Maximum allowed constriction of the exploration trust region
-    })
+study = forced_walk.create_fw_study(direction="minimize")
 study.optimize(optimize_function, n_trials=200)   
 print(study.best_value)
 ```
@@ -239,24 +206,17 @@ The underlying neural network guiding the surrogate filtering can also be fully 
 | **`force_cpu`** | Bool | Forces TensorFlow to execute on the CPU. Recommended to avoid GPU memory transfer overhead and latency when frequently retraining very small networks. |
 | **`random_seed`** | Int | Global random seed to ensure search initialization reproducibility. |
 
-
 ## Experimental Data
-
 ### Section IV-B. PHASE I: SYNTHETIC MATHEMATICAL EXPRESSIONS
 The raw experimental results are available in the Excel file `raw_data_sectionsB-C-D-G.xlsx`.
-
 ### Section IV-C. ABLATION STUDY
 The raw experimental results are available in the Excel file `raw_data_sectionsB-C-D-G.xlsx`.
-
 ### Section IV-D. PHASE I: SEQUENTIAL HPO IN SUPERVISED LEARNING
 The raw experimental results are available in the Excel file `raw_data_sectionsB-C-D-G.xlsx`. Additionally, the data used to plot the optimization trajectories and hyperparameter evolution across the four supervised learning benchmarks are stored as `.pkl` files in the `SectionIV-D_7_param_diagram_data` directory.
-
 ### Section IV-E. PHASE II: ONLINE HPO IN SUPERVISED LEARNING
 The raw experimental results are provided as `.pkl` files in the `SectionIV-E_raw_data` directory.
-
 ### Section IV-F. PHASE II: ONLINE HPO IN SELF-PLAY RL
 The raw experimental results are provided as `.pkl` files in the `SectionIV-F-diagrams_data_backgammon` directory.
-
 ### Section IV-G. PHASE II: ONLINE HPO IN RL
 The summarized experimental results are available in the Excel file `raw_data_sectionsB-C-D-G.xlsx`. Detailed analytical results for each individual experiment are located in the `SectionIV-G_raw_data` directory.
 
