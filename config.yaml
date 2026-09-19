@@ -1,0 +1,82 @@
+# --- Algorithm Configurations (Forced Walk Optimizer) ---
+
+# Enables console logging of trial evaluations and discovered best values ("True" or "False")
+logging: "True"
+
+# Global exploration radius multiplier. Defines the maximum span of randomized steps 
+# relative to the base_scale. Must be in the range (0, 0.5].
+search_radius: 0.5
+
+# Phase 1 survival count (beam width). The number of top-performing candidate points 
+# retained after the global surrogate filtering step to be used as pivots for local search.
+beta: 1
+
+# Stagnation threshold. The number of consecutive trial evaluations without discovering 
+# a new global best before the search step size is constricted (zoomed in).
+tau: 20
+
+# Zoom factor multiplier. The factor by which the search resolution (scale) is increased 
+# when the stagnation threshold (tau) is met, effectively shrinking the trust region.
+zeta: 2
+
+# Maximum allowable zoom magnification. Prevents the search radius from becoming 
+# infinitesimally small after repeated constrictions.
+max_zoom: 8
+
+# Forgetting factor (0 to 1). The fraction of the oldest historical evaluation 
+# data to permanently discard before training the surrogate neural network.
+mu: 0
+
+# History truncation limit. The maximum number of recent trials to include in the 
+# surrogate model's training set. Set to "False" for unbounded memory.
+max_samples: "False"
+
+# Warm-up period. The number of initial, purely random evaluations used to populate 
+# the historical data before surrogate-guided search begins. Must be strictly > 2.
+rho: 3
+
+# Phase 2 candidate batch size. The number of local candidate mutations generated 
+# around each of the surviving 'beta' pivot points.
+R_local: 10000
+
+# Proximal radius factor (0 to 1]. Defines the maximum step size for the Phase 2 
+# local candidate generation as a fraction of the global high_high_dice limits.
+lambda: 0.02
+
+# Search grid resolution. The baseline denominator used to compute continuous parameter steps. 
+# Higher values yield finer minimum steps.
+base_scale: 10000
+
+# --- Extracted Surrogate NN Hyperparameters ---
+
+# Activation function for the surrogate model's hidden layers (e.g., "relu", "tanh").
+nn_activation: "relu"
+
+# Number of hidden dense layers in the surrogate neural network.
+nn_layers: 3
+
+# Number of neurons per hidden layer.
+nn_nodes: 32
+
+# Learning rate for the Adam optimizer during surrogate training.
+nn_learning_rate: 0.0008
+
+# Mini-batch size used when fitting the surrogate model.
+nn_batch_size: 4
+
+# Toggles early stopping ("True" or "False"). If True, training stops if the loss 
+# does not improve for 10 epochs, restoring the best weights.
+early_stopping: "False"
+
+# Number of training epochs to use when the history contains fewer than 1000 data points.
+nn_epochs_early: 200
+
+# Number of training epochs to use when the history contains 1000 or more data points.
+nn_epochs_late: 400
+
+# Forces TensorFlow to execute on the CPU (true/false). This avoids GPU memory transfer 
+# overhead and latency when frequently re-training very small networks.
+force_cpu: true
+
+# Global random seed for reproducibility.
+random_seed: 42
