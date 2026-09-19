@@ -223,3 +223,24 @@ The following internal parameters govern the behavior of the Forced Walk algorit
 Use the following if you need to deactivate the console's colored output:
 
 **`study.use_colors = False`**
+
+## Experimental Data
+
+### Section IV-B. PHASE I: SYNTHETIC MATHEMATICAL EXPRESSIONS
+The raw experimental results are available in the Excel file `raw_data_sectionsB-C-D-G.xlsx`.
+
+### Section IV-C. ABLATION STUDY
+The raw experimental results are available in the Excel file `raw_data_sectionsB-C-D-G.xlsx`.
+
+### Section IV-D. PHASE I: SEQUENTIAL HPO IN SUPERVISED LEARNING
+The raw experimental results are available in the Excel file `raw_data_sectionsB-C-D-G.xlsx`. Additionally, the data used to plot the optimization trajectories and hyperparameter evolution across the four supervised learning benchmarks are stored as `.pkl` files in the `SectionIV-D_7_param_diagram_data` directory.
+
+### Section IV-E. PHASE II: ONLINE HPO IN SUPERVISED LEARNING
+The raw experimental results are provided as `.pkl` files in the `SectionIV-E_raw_data` directory.
+
+### Section IV-F. PHASE II: ONLINE HPO IN SELF-PLAY RL
+The raw experimental results are provided as `.pkl` files in the `SectionIV-F-diagrams_data_backgammon` directory.
+
+### Section IV-G. PHASE II: ONLINE HPO IN RL
+The summarized experimental results are available in the Excel file `raw_data_sectionsB-C-D-G.xlsx`. Detailed analytical results for each individual experiment are located in the `SectionIV-G_raw_data` directory.
+
