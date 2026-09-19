@@ -202,22 +202,41 @@ print(study.best_value)
 
 ## Configuration Guide
 
-### Forced Walk hyperparameters
+### Forced Walk Configuration Parameters
 
-The following internal parameters govern the behavior of the Forced Walk algorithm. They can be overridden using the dictionary method shown in Example 2.
+The following internal hyperparameters govern the behavior of the Forced Walk algorithm. They are defined and can be customized within the `config.yaml` file.
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| **`base_scale`** | Int | Centralized grid resolution (default: 10,000). Acts as the foundational denominator for mapping discrete stochastic steps to the continuous parameter space. |
-| **`search_radius`** | Float | Global search radius ($\delta$). Must be in the range `(0, 0.5]`. A value of `0.5` establishes a full-space diameter of 1.0, covering 100% of the parameter bounds. |
-| **`beta`** | Int | Evaluation batch size ($\beta$) and selection bottleneck. Determines how many high-potential seeds survive Global Exploration to become pivot points. |
-| **`tau`** | Int | Stagnation limit ($\tau$). Number of consecutive episodes without a new global best before triggering adaptive step-scaling (zoom). |
-| **`zeta`** | Float | Contraction factor ($\zeta$). The multiplier is used to systematically constrict the exploration trust region upon detecting stagnation. |
-| **`mu`** | Float | Truncation factor ($\mu$). Must be in the range`[0, 1)`. Fraction of the oldest replay buffer experiences to prune (e.g., `0.3` drops the oldest 30%) to force local topographic overfitting. |
-| **`max_zoom`** | Int | Maximum allowed contraction level. Prevents the search radius from scaling down into mathematical collapse or zero-step states. |
-| **`rho`** | Int | Initial random samples ($\rho$) for the stochastic warm-up phase to populate the replay buffer and prevent cold-start bias. |
-| **`R_local`** | Int | Local sampling intensity. Number of dense candidates generated around each pivot point during the proximal refinement stage. |
-| **`lambda`** | Float | Locality factor multiplier ($\lambda$). Must be in the range `(0, 1]`. Dictates the local refinement radius strictly as a fraction of the current global radius ($\delta_{local} = \lambda \cdot \delta$). |
+| **`logging`** | String | Enables console logging of trial evaluations and discovered best values (`"True"` or `"False"`). |
+| **`base_scale`** | Int | Search grid resolution. Serves as the fundamental denominator for mapping discrete stochastic steps into continuous parameter spaces. Higher values yield finer minimum step sizes. |
+| **`search_radius`** | Float | Global exploration radius multiplier ($\delta$). Must be in the range `(0, 0.5]`. Defines the maximum span of randomized steps relative to the base scale. A value of `0.5` establishes a full-space diameter of 1.0, covering 100% of the parameter bounds. |
+| **`beta`** | Int | Phase 1 survival count ($\beta$), or beam width. Determines the number of top-performing candidate points retained after the global surrogate filtering step to serve as pivot points for local search. |
+| **`tau`** | Int | Stagnation threshold ($\tau$). The number of consecutive trial evaluations without discovering a new global best before adaptive step-scaling (zooming) is triggered. |
+| **`zeta`** | Float | Contraction factor ($\zeta$). The multiplier applied to systematically constrict the search resolution (shrinking the trust region) when the stagnation threshold is reached. |
+| **`max_zoom`** | Int | Maximum allowable zoom magnification. Prevents the search radius from scaling down into mathematical collapse or infinitesimally small step sizes after repeated constrictions. |
+| **`mu`** | Float | Forgetting factor ($\mu$). Must be in the range `[0, 1)`. The fraction of the oldest historical trial data to permanently discard before training the surrogate model (e.g., `0.3` drops the oldest 30%), forcing the network to overfit to the local topography. |
+| **`max_samples`** | Int/Str | History truncation limit. The maximum number of recent trials to include in the surrogate model's training set. Set to `"False"` for unbounded memory. |
+| **`rho`** | Int | Warm-up period ($\rho$). Must be strictly `> 2`. The number of initial, purely random evaluations used to populate the historical data buffer before surrogate-guided search begins, preventing cold-start bias. |
+| **`R_local`** | Int | Local sampling intensity. The number of dense candidate mutations generated around each surviving pivot point during the Phase 2 proximal refinement stage. |
+| **`lambda`** | Float | Locality factor multiplier ($\lambda$). Must be in the range `(0, 1]`. Dictates the local refinement radius strictly as a fraction of the current global search radius ($\delta_{\text{local}} = \lambda \cdot \delta$). |
+
+### Surrogate Neural Network Hyperparameters
+
+The underlying neural network guiding the surrogate filtering can also be fully customized via the same `config.yaml` file.
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| **`nn_activation`** | String | Activation function for the surrogate model's hidden layers (e.g., `"relu"`, `"tanh"`). |
+| **`nn_layers`** | Int | Number of hidden dense layers in the surrogate neural network. |
+| **`nn_nodes`** | Int | Number of neurons per hidden layer. |
+| **`nn_learning_rate`** | Float | Learning rate for the Adam optimizer during surrogate model training. |
+| **`nn_batch_size`** | Int | Mini-batch size used when fitting the surrogate model. |
+| **`early_stopping`** | String | Toggles early stopping (`"True"` or `"False"`). If enabled, training halts if the loss does not improve for 10 epochs, restoring the best weights. |
+| **`nn_epochs_early`** | Int | Number of training epochs to execute when the historical buffer contains fewer than 1,000 data points. |
+| **`nn_epochs_late`** | Int | Number of training epochs to execute when the historical buffer contains 1,000 or more data points. |
+| **`force_cpu`** | Bool | Forces TensorFlow to execute on the CPU. Recommended to avoid GPU memory transfer overhead and latency when frequently retraining very small networks. |
+| **`random_seed`** | Int | Global random seed to ensure search initialization reproducibility. |
 
 ### Console Colors
 Use the following if you need to deactivate the console's colored output:
