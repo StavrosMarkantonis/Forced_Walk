@@ -209,6 +209,7 @@ The following internal hyperparameters govern the behavior of the Forced Walk al
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | **`logging`** | String | Enables console logging of trial evaluations and discovered best values (`"True"` or `"False"`). |
+| **`use_colors`** | String | Deactivate the console's colored output (`"True"` or `"False"`). |
 | **`base_scale`** | Int | Search grid resolution. Serves as the fundamental denominator for mapping discrete stochastic steps into continuous parameter spaces. Higher values yield finer minimum step sizes. |
 | **`search_radius`** | Float | Global exploration radius multiplier ($\delta$). Must be in the range `(0, 0.5]`. Defines the maximum span of randomized steps relative to the base scale. A value of `0.5` establishes a full-space diameter of 1.0, covering 100% of the parameter bounds. |
 | **`beta`** | Int | Phase 1 survival count ($\beta$), or beam width. Determines the number of top-performing candidate points retained after the global surrogate filtering step to serve as pivot points for local search. |
