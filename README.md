@@ -239,10 +239,6 @@ The underlying neural network guiding the surrogate filtering can also be fully 
 | **`force_cpu`** | Bool | Forces TensorFlow to execute on the CPU. Recommended to avoid GPU memory transfer overhead and latency when frequently retraining very small networks. |
 | **`random_seed`** | Int | Global random seed to ensure search initialization reproducibility. |
 
-### Console Colors
-Use the following if you need to deactivate the console's colored output:
-
-**`study.use_colors = False`**
 
 ## Experimental Data
 
